@@ -5,6 +5,7 @@ using System.Data.Common;
 using System.Data.Entity;
 using System.Data.SqlClient;
 using System.Linq;
+using ETG.SABENTISpro.Models.Core;
 using ETG.SABENTISpro.Models.Core.Locale;
 using TestBrokenEf.Model;
 using Z.EntityFramework.Extensions;
@@ -17,7 +18,7 @@ namespace TestBrokenEf
         /// <summary>
         /// 
         /// </summary>
-        private string ConnectionString = "Data Source=DESKTOP-DP110GP\\MSSQL2019;User ID=;Password=;MultipleActiveResultSets=False;Trusted_Connection=True;Initial Catalog=testef";
+        private string ConnectionString = "";
 
         /// <summary>
         /// 
@@ -38,6 +39,32 @@ namespace TestBrokenEf
             cnn.ConnectionString = connectionString;
 
             return cnn;
+        }
+
+        [TestMethod]
+        public void TestMethod3()
+        {
+            this.DeployEntityFrameworkExtensionsLicense();
+
+            Database.SetInitializer<DBModelTest>(null);
+
+            var connection = this.GetConnection(this.ConnectionString);
+
+            var modelBuilder = new DbModelBuilder(DbModelBuilderVersion.V6_0);
+            modelBuilder.Configurations.Add(new CORE_LOCALES_SOURCEConfiguration());
+            var model = modelBuilder.Build(this.GetConnection(this.ConnectionString));
+            var compiledModel = model.Compile();
+            var sqlConnection = new SqlConnection(this.ConnectionString);
+
+            this.CreateTables();
+
+            using (var db = new DBModelTest(sqlConnection, compiledModel, true))
+            {
+                db.CORE_LOCALES_SOURCE
+                    .Where(i => i.source.Contains(" "))
+                    .UpdateFromQuery(i => new CORE_LOCALES_SOURCE() { source = i.source.Replace(" ", string.Empty) });
+            }
+
         }
 
         /// <summary>
@@ -116,6 +143,57 @@ namespace TestBrokenEf
             }
         }
 
+        [TestMethod]
+        public void TestMethod2()
+        {
+            this.DeployEntityFrameworkExtensionsLicense();
+
+            Database.SetInitializer<DBModelTest>(null);
+
+            var connection = this.GetConnection(this.ConnectionString);
+
+            var modelBuilder = new DbModelBuilder(DbModelBuilderVersion.V6_0);
+            modelBuilder.Configurations.Add(new FIRMADIGITAL_FIRMANTEConfiguration());
+            modelBuilder.Configurations.Add(new FIRMADIGITAL_SOLICITUDConfiguration());
+            var model = modelBuilder.Build(this.GetConnection(this.ConnectionString));
+            var compiledModel = model.Compile();
+
+            var sqlConnection = new SqlConnection(this.ConnectionString);
+
+            this.CreateTables2();
+
+            using (var db = new DBModelTest(sqlConnection, compiledModel, true))
+            {
+                var solicitud = new FIRMADIGITAL_SOLICITUD()
+                {
+                    fk_core_person_solicitante = Guid.NewGuid(),
+                    name = "nombre",
+                    description = "descripcion",
+                    createdAt = 123456789
+                };
+
+                db.BulkInsert(new List<object>() { solicitud });
+
+                Assert.AreNotEqual(Guid.Empty, solicitud.id);
+
+                var sources = new List<FIRMADIGITAL_FIRMANTE>();
+
+                sources.Add(new FIRMADIGITAL_FIRMANTE()
+                {
+                    nombre = "prueba xxx",
+                    id = default(Guid),
+                    cargo = "test",
+                    email = "asdgasdg@asdg.com",
+                    fk_firmadigital_solicitud = solicitud.id
+                });
+
+                db.BulkMerge(sources);
+
+                Assert.AreNotEqual(Guid.Empty, sources.First().id);
+                Assert.AreNotEqual(Guid.Empty, sources.Last().id);
+            }
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -162,6 +240,88 @@ ALTER TABLE [dbo].[CORE_LOCALES_SOURCE] ADD CONSTRAINT [UQ_CORE_LOCALES_SOURCE_S
 
 
 ";
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private void CreateTables2()
+        {
+            using (var sqlConnection = new SqlConnection(this.ConnectionString))
+            {
+                sqlConnection.Open();
+
+                var cmd = sqlConnection.CreateCommand();
+
+                cmd.CommandText = "";
+
+                cmd.CommandText += @"
+DROP TABLE IF EXISTS FIRMADIGITAL_FIRMANTE;
+DROP TABLE IF EXISTS FIRMADIGITAL_SOLICITUD;
+
+CREATE TABLE [dbo].[FIRMADIGITAL_SOLICITUD](
+	[id] [uniqueidentifier] NOT NULL,
+	[fk_core_tenant_tenant] [uniqueidentifier] NULL,
+	[fk_core_person_solicitante] [uniqueidentifier] NOT NULL,
+	[name] [nvarchar](255) NULL,
+	[description] [nvarchar](255) NULL,
+	[remoteDocumentId] [nvarchar](255) NULL,
+	[status] [smallint] NULL,
+	[signedAt] [bigint] NULL,
+	[expiresAt] [bigint] NULL,
+	[revokedAt] [bigint] NULL,
+	[createdAt] [bigint] NOT NULL,
+	[changedAt] [bigint] NULL,
+	[deletedAt] [bigint] NULL,
+	[extend] [varbinary](max) NULL,
+	[jsonExtend] [nvarchar](max) NULL,
+ CONSTRAINT [PK_FIRMADIGITAL_SOLICITUD] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+;
+
+ALTER TABLE [dbo].[FIRMADIGITAL_SOLICITUD] ADD  CONSTRAINT [DF_FIRMADIGITAL_SOLICITUD_id]  DEFAULT (newsequentialid()) FOR [id]
+;
+
+;";
+
+                cmd.CommandText += @"
+
+CREATE TABLE [dbo].[FIRMADIGITAL_FIRMANTE](
+	[id] [uniqueidentifier] NOT NULL,
+	[nombre] [nvarchar](255) NOT NULL,
+	[email] [nvarchar](255) NOT NULL,
+	[cargo] [nvarchar](255) NULL,
+	[signOrder] [smallint] NULL,
+	[fk_firmadigital_solicitud] [uniqueidentifier] NOT NULL,
+	[fk_core_person_firmante] [uniqueidentifier] NULL,
+	[createdAt] [bigint] NULL,
+	[changedAt] [bigint] NULL,
+	[extend] [varbinary](max) NULL,
+	[jsonExtend] [nvarchar](max) NULL,
+ CONSTRAINT [PK_FIRMADIGITAL_FIRMANTE] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+;
+
+ALTER TABLE [dbo].[FIRMADIGITAL_FIRMANTE] ADD  CONSTRAINT [DF_FIRMADIGITAL_FIRMANTE_id]  DEFAULT (newsequentialid()) FOR [id]
+;
+
+ALTER TABLE [dbo].[FIRMADIGITAL_FIRMANTE]  WITH CHECK ADD  CONSTRAINT [FK_FIRMADIGITAL_FIRMANTE_FIRMADIGITAL_SOLICITUD] FOREIGN KEY([fk_firmadigital_solicitud])
+REFERENCES [dbo].[FIRMADIGITAL_SOLICITUD] ([id])
+;
+
+ALTER TABLE [dbo].[FIRMADIGITAL_FIRMANTE] CHECK CONSTRAINT [FK_FIRMADIGITAL_FIRMANTE_FIRMADIGITAL_SOLICITUD]
+;
+
+";
+
                 cmd.ExecuteNonQuery();
             }
         }

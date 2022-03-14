@@ -7,6 +7,7 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ETG.SABENTISpro.Models.Core;
 using ETG.SABENTISpro.Models.Core.Locale;
 
 namespace TestBrokenEf.Model
@@ -18,7 +19,11 @@ namespace TestBrokenEf.Model
         {
         }
 
-        public DbSet<CORE_LOCALES_SOURCE> Students { get; set; }
+        public DbSet<CORE_LOCALES_SOURCE> CORE_LOCALES_SOURCE { get; set; }
+
+        public DbSet<FIRMADIGITAL_FIRMANTE> FIRMADIGITAL_FIRMANTE { get; set; }
+
+        public DbSet<FIRMADIGITAL_SOLICITUD> FIRMADIGITAL_SOLICITUD { get; set; }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
